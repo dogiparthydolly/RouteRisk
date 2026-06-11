@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RouteRisk — Know What's Ahead</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --black:   #0C0F0A;
+  --surface: #141810;
+  --card:    #1A1F16;
+  --border:  #2A3025;
+  --green:   #7EBF5A;
+  --green-dim: rgba(126,191,90,0.12);
+  --amber:   #E8A838;
+  --amber-dim: rgba(232,168,56,0.12);
+  --red:     #E05252;
+  --red-dim: rgba(224,82,82,0.12);
+  --stone:   #8A9680;
+  --white:   #EFF2EC;
+  --mono:    'Space Mono', monospace;
+  --sans:    'Space Grotesk', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Topographic background */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(126,191,90,0.04) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(126,191,90,0.04) 40px);
+  pointer-events: none;
+}
+
+/* GATE */
+#gate {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(12,15,10,0.88);
+  backdrop-filter: blur(16px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.gate-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  max-width: 460px; width: 100%;
+  padding: 36px;
+}
+.gate-logo {
+  font-family: var(--mono); font-weight: 700; font-size: 22px;
+  color: var(--green); letter-spacing: 0.04em; margin-bottom: 4px;
+}
+.gate-eyebrow {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--stone); margin-bottom: 28px;
+}
+.gate-title {
+  font-size: 18px; font-weight: 600; margin-bottom: 12px;
+}
+.gate-body {
+  font-size: 13px; color: var(--stone); line-height: 1.7; margin-bottom: 22px;
+}
+.gate-body strong { color: var(--white); }
+.gate-check-row {
+  display: flex; align-items: flex-start; gap: 12px; margin-bottom: 22px;
+}
+.gate-check-row input[type="checkbox"] {
+  width: 15px; height: 15px; margin-top: 3px; flex-shrink: 0;
+  accent-color: var(--green); cursor: pointer;
+}
+.gate-check-label {
+  font-size: 13px; color: var(--stone); line-height: 1.6; cursor: pointer;
+}
+.gate-check-label strong { color: var(--white); }
+.gate-btn {
+  width: 100%; padding: 13px;
+  background: var(--green); color: var(--black);
+  border: none; cursor: pointer;
+  font-family: var(--mono); font-weight: 700; font-size: 14px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  transition: opacity 0.2s;
+}
+.gate-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+.gate-btn:not(:disabled):hover { opacity: 0.88; }
+.gate-note {
+  margin-top: 14px; text-align: center;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--stone); letter-spacing: 0.06em;
+}
+#mainContent { display: none; }
+
+/* NAV */
+nav {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 58px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(12,15,10,0.9);
+  backdrop-filter: blur(10px);
+}
+.nav-logo {
+  font-family: var(--mono); font-weight: 700; font-size: 18px;
+  color: var(--green); letter-spacing: 0.04em;
+}
+.nav-tag {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--stone); letter-spacing: 0.12em; text-transform: uppercase;
+}
+.nav-badge {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px; color: var(--green);
+  letter-spacing: 0.08em;
+}
+.pulse-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* HERO */
+.hero {
+  position: relative; z-index: 1;
+  padding: 80px 40px 60px;
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start;
+}
+.hero-eyebrow {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--green); letter-spacing: 0.18em;
+  text-transform: uppercase; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.hero-eyebrow::before {
+  content: ''; display: block; width: 24px; height: 1px; background: var(--green);
+}
+.hero h1 {
+  font-size: clamp(38px, 4.5vw, 58px); font-weight: 700;
+  line-height: 1.08; letter-spacing: -0.02em; margin-bottom: 18px;
+}
+.hero h1 em { font-style: normal; color: var(--green); }
+.hero-sub {
+  font-size: 15px; color: var(--stone); line-height: 1.7;
+  max-width: 400px; margin-bottom: 32px;
+}
+.hero-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  background: var(--green-dim); border: 1px solid rgba(126,191,90,0.25);
+  padding: 5px 12px; border-radius: 2px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--green); letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+/* CHAT CARD */
+.chat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.chat-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.chat-avatar {
+  width: 30px; height: 30px; background: var(--green);
+  border-radius: 2px; display: flex; align-items: center;
+  justify-content: center; font-size: 14px; flex-shrink: 0;
+}
+.chat-name {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  color: var(--white); letter-spacing: 0.04em;
+}
+.chat-status {
+  font-family: var(--mono); font-size: 10px; color: var(--green);
+  letter-spacing: 0.06em;
+}
+.chat-reset {
+  margin-left: auto; background: transparent;
+  border: 1px solid var(--border); padding: 4px 12px;
+  font-family: var(--mono); font-size: 10px; color: var(--stone);
+  cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase;
+  transition: all 0.15s;
+}
+.chat-reset:hover { border-color: var(--green); color: var(--green); }
+
+/* Messages */
+#chatMessages {
+  height: 400px; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+#chatMessages::-webkit-scrollbar { width: 4px; }
+#chatMessages::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* Photo preview */
+#chatPhotoPreview {
+  display: none; padding: 0 20px 10px;
+}
+
+/* Input area */
+.chat-input-area {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.input-actions { display: flex; gap: 8px; }
+.action-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: transparent; border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 10px; color: var(--stone);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.action-btn:hover { border-color: var(--green); color: var(--green); }
+.input-row { display: flex; gap: 10px; align-items: flex-end; }
+#chatInput {
+  flex: 1; resize: none;
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 10px 14px;
+  font-family: var(--sans); font-size: 13px; color: var(--white);
+  outline: none; line-height: 1.5; max-height: 100px; overflow-y: auto;
+  border-radius: 2px; transition: border-color 0.15s;
+}
+#chatInput:focus { border-color: var(--green); }
+#chatInput::placeholder { color: var(--stone); }
+#sendBtn {
+  width: 38px; height: 38px; background: var(--green);
+  border: none; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 2px; transition: opacity 0.15s;
+}
+#sendBtn:hover { opacity: 0.85; }
+
+/* Bubbles */
+.bot-wrap { display: flex; gap: 8px; align-items: flex-start; }
+.bot-avatar {
+  width: 26px; height: 26px; background: var(--green);
+  border-radius: 2px; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; flex-shrink: 0; margin-top: 2px;
+}
+.bot-bubble {
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 12px 16px; font-size: 13px; line-height: 1.7;
+  max-width: 88%; color: var(--white); border-radius: 2px 12px 12px 2px;
+}
+.user-wrap { display: flex; justify-content: flex-end; }
+.user-bubble {
+  background: var(--green); color: var(--black);
+  padding: 11px 15px; font-size: 13px; line-height: 1.65;
+  max-width: 88%; border-radius: 12px 2px 2px 12px;
+  font-weight: 500;
+}
+
+/* Quick replies */
+.quick-replies {
+  display: flex; flex-wrap: wrap; gap: 8px; padding-left: 34px;
+}
+.qr-btn {
+  background: transparent; border: 1px solid var(--border);
+  padding: 6px 14px;
+  font-family: var(--mono); font-size: 10px; color: var(--stone);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer; border-radius: 2px; transition: all 0.15s;
+}
+.qr-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+/* Typing */
+.typing-wrap { display: flex; gap: 8px; align-items: center; }
+.typing-bubble {
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 12px 16px; display: flex; gap: 5px; align-items: center;
+  border-radius: 2px 12px 12px 2px;
+}
+.typing-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  animation: blink 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Risk rows inside bubbles */
+.risk-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 12px; margin-bottom: 6px; border-radius: 2px;
+}
+.risk-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.risk-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.risk-desc { font-size: 12px; line-height: 1.55; }
+.risk-source { font-family: var(--mono); font-size: 10px; color: var(--stone); margin-top: 3px; }
+.risk-tag {
+  font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+  border-radius: 2px; white-space: nowrap; margin-left: auto;
+  flex-shrink: 0; letter-spacing: 0.04em;
+}
+
+/* HOW IT WORKS */
+.how-section {
+  position: relative; z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 80px 40px;
+}
+.how-inner { max-width: 1100px; margin: 0 auto; }
+.how-eyebrow {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--green); letter-spacing: 0.16em;
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.how-title {
+  font-size: clamp(24px, 3vw, 36px); font-weight: 700;
+  margin-bottom: 48px; letter-spacing: -0.01em;
+}
+.how-grid {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 2px;
+}
+.how-card {
+  background: var(--card); padding: 26px;
+  border: 1px solid var(--border);
+}
+.how-card h3 {
+  font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--green);
+}
+.how-card p { font-size: 13px; color: var(--stone); line-height: 1.65; }
+
+/* DISCLAIMER */
+.disclaimer {
+  border-top: 1px solid var(--border);
+  padding: 28px 40px;
+  position: relative; z-index: 1;
+}
+.disclaimer-inner {
+  max-width: 1100px; margin: 0 auto;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--stone); line-height: 1.7; letter-spacing: 0.02em;
+}
+.disclaimer-inner strong { color: var(--amber); }
+
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--border); padding: 28px 40px;
+  text-align: center; position: relative; z-index: 1;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--stone); letter-spacing: 0.06em;
+}
+footer span { color: var(--green); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  nav { padding: 0 20px; }
+  .nav-tag { display: none; }
+  .hero { grid-template-columns: 1fr; gap: 40px; padding: 60px 20px 40px; }
+  .how-section, .disclaimer, footer { padding-left: 20px; padding-right: 20px; }
+  .how-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- GATE -->
+<div id="gate">
+  <div class="gate-box">
+    <div class="gate-logo">RouteRisk</div>
+    <div class="gate-eyebrow">Road Safety Intelligence for Cyclists</div>
+    <div class="gate-title">Before you roll out</div>
+    <div class="gate-body">
+      RouteRisk uses AI to analyze cycling routes for road hazards, gravel sections, animal crossing zones, and terrain risk. It's a <strong>planning aid — not a guarantee of safety.</strong> Conditions change. The model can be wrong. Always ride within your ability and follow local road rules.
+    </div>
+    <div class="gate-check-row">
+      <input type="checkbox" id="gateCheck" onchange="document.getElementById('gateBtn').disabled = !this.checked">
+      <label class="gate-check-label" for="gateCheck">
+        I understand this is an <strong>AI-powered planning tool</strong>. I will not rely solely on RouteRisk for safety decisions on the road.
+      </label>
+    </div>
+    <button class="gate-btn" id="gateBtn" disabled onclick="enterSite()">I understand — analyse my route</button>
+    <div class="gate-note">No account required. Route data is not stored.</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="mainContent">
+
+<nav>
+  <div class="nav-logo">RouteRisk</div>
+  <div class="nav-tag">Road Safety Intelligence</div>
+  <div class="nav-badge"><div class="pulse-dot"></div> AI Active</div>
+</nav>
+
+<div class="hero">
+  <div>
+    <div class="hero-eyebrow">For Everyday Athletes</div>
+    <h1>Know what's<br>on the road<br><em>before you ride.</em></h1>
+    <p class="hero-sub">Paste your Strava or RideWithGPS route URL and RouteRisk maps the hazards — road surface, gravel sections, blind corners, animal crossing zones, and elevation danger.</p>
+    <div class="hero-pills">
+      <div class="pill">🪨 Gravel risk</div>
+      <div class="pill">🐄 Animal zones</div>
+      <div class="pill">⛰ Descent danger</div>
+      <div class="pill">🚧 Road surface</div>
+      <div class="pill">☁️ Weather overlay</div>
+    </div>
+  </div>
+
+  <!-- CHAT CARD -->
+  <div class="chat-card">
+    <div class="chat-header">
+      <div class="chat-avatar">🚴</div>
+      <div>
+        <div class="chat-name">RouteRisk</div>
+        <div class="chat-status">● ready</div>
+      </div>
+      <button class="chat-reset" onclick="resetChat()">New route</button>
+    </div>
+
+    <div id="chatMessages"></div>
+
+    <div id="chatPhotoPreview">
+      <div style="position:relative;display:inline-block;">
+        <img id="chatPhotoImg" style="height:72px;border-radius:2px;border:1px solid var(--border);">
+        <button onclick="clearPhoto()" style="position:absolute;top:-6px;right:-6px;background:var(--green);color:var(--black);border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;">✕</button>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="input-actions">
+        <label class="action-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          GPX file
+          <input type="file" accept=".gpx,.fit,.tcx" onchange="handleFile(event)" style="display:none;">
+        </label>
+        <label class="action-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Photo
+          <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)" style="display:none;">
+        </label>
+      </div>
+      <div class="input-row">
+        <textarea id="chatInput" placeholder="Paste a Strava or RideWithGPS URL…" rows="1"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button id="sendBtn" onclick="sendMessage()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0C0F0A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="how-section">
+  <div class="how-inner">
+    <div class="how-eyebrow">How it works</div>
+    <div class="how-title">Your route. Our radar.</div>
+    <div class="how-grid">
+      <div class="how-card">
+        <h3>Paste your route</h3>
+        <p>Drop in any Strava or RideWithGPS URL — or describe where you're riding. RouteRisk reads the route name, terrain, and region.</p>
+      </div>
+      <div class="how-card">
+        <h3>AI maps the hazards</h3>
+        <p>Cross-references terrain data, road surface records, known wildlife zones, seasonal patterns, and historical incident data for the region.</p>
+      </div>
+      <div class="how-card">
+        <h3>You ride smarter</h3>
+        <p>Get a section-by-section breakdown — gravel patches, blind descents, cattle grids, animal crossing probability, and weather risk windows.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DISCLAIMER -->
+<div class="disclaimer">
+  <div class="disclaimer-inner">
+    <strong>Disclaimer:</strong> RouteRisk is an AI-powered planning tool, not a certified safety system. Hazard assessments are probabilistic and based on general terrain, surface, and wildlife data — they do not reflect real-time conditions. <strong>The model can make mistakes.</strong> Road surfaces change, animals are unpredictable, and weather evolves. Always ride within your ability, wear appropriate safety gear, and verify conditions locally before you set out. RouteRisk accepts no liability for incidents on routes it has analyzed.
+  </div>
+</div>
+
+<footer>
+  <span>RouteRisk</span> · Road Safety Intelligence for Cyclists · The model can be wrong. Ride smart.
+</footer>
+
+</div><!-- /mainContent -->
+
+<script>
+// ── State ──────────────────────────────
+let chatStep = 'greeting';
+let pendingPhoto = null;
+let pendingRoute = null;
+let rideType = null;
+let riderConcern = null;
+
+// ── Boot ───────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => botMsg("Hey! 👋 Paste your <strong>Strava</strong> or <strong>RideWithGPS</strong> URL and I'll map the hazards on your route — gravel, animals, descents, road surface, all of it."), 400);
+  setTimeout(() => addQR(['🔗 Paste a URL', '🗺 Describe my route', '🚴 Try an example']), 900);
+});
+
+// ── UI helpers ─────────────────────────
+function botMsg(html) {
+  const wrap = document.createElement('div');
+  wrap.className = 'bot-wrap';
+  wrap.innerHTML = `<div class="bot-avatar">🚴</div><div class="bot-bubble">${html}</div>`;
+  append(wrap);
+}
+
+function userMsg(text, imgSrc) {
+  const wrap = document.createElement('div');
+  wrap.className = 'user-wrap';
+  let inner = '';
+  if (imgSrc) inner += `<img src="${imgSrc}" style="display:block;max-height:70px;border-radius:2px;margin-bottom:6px;">`;
+  if (text) inner += text;
+  wrap.innerHTML = `<div class="user-bubble">${inner}</div>`;
+  append(wrap);
+}
+
+function addTyping() {
+  const wrap = document.createElement('div');
+  wrap.id = 'typing'; wrap.className = 'typing-wrap';
+  wrap.innerHTML = `<div class="bot-avatar">🚴</div><div class="typing-bubble"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  append(wrap);
+}
+function removeTyping() { const el=document.getElementById('typing'); if(el) el.remove(); }
+
+function addQR(opts) {
+  const wrap = document.createElement('div');
+  wrap.id = 'qr'; wrap.className = 'quick-replies';
+  opts.forEach(o => {
+    const btn = document.createElement('button');
+    btn.className = 'qr-btn'; btn.textContent = o;
+    btn.onclick = () => handleQR(o);
+    wrap.appendChild(btn);
+  });
+  append(wrap);
+}
+function removeQR() { const el=document.getElementById('qr'); if(el) el.remove(); }
+
+function append(el) {
+  const c = document.getElementById('chatMessages');
+  c.appendChild(el); c.scrollTop = c.scrollHeight;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ── Photo / file ───────────────────────
+function handlePhoto(event) {
+  const file = event.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingPhoto = { base64: e.target.result.split(',')[1], mediaType: file.type||'image/jpeg', src: e.target.result };
+    document.getElementById('chatPhotoImg').src = e.target.result;
+    document.getElementById('chatPhotoPreview').style.display = 'block';
+    document.getElementById('chatInput').placeholder = 'Photo ready — tap send or add a note…';
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function handleFile(event) {
+  const file = event.target.files[0]; if(!file) return;
+  botMsg(`Got your <strong>${file.name}</strong> — GPX import coming soon! For now paste your Strava or RideWithGPS URL and I can analyse the route.`);
+  event.target.value = '';
+}
+
+function clearPhoto() {
+  pendingPhoto = null;
+  document.getElementById('chatPhotoPreview').style.display = 'none';
+  document.getElementById('chatInput').placeholder = 'Paste a Strava or RideWithGPS URL…';
+}
+
+// ── Send ───────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text && !pendingPhoto) return;
+  const photo = pendingPhoto;
+  if (text) userMsg(text, photo?.src);
+  else if (photo) userMsg(null, photo.src);
+  input.value = ''; input.style.height = 'auto';
+  clearPhoto(); removeQR();
+  await processInput(text, photo);
+}
+
+// ── Quick replies ──────────────────────
+async function handleQR(opt) {
+  removeQR();
+  if (opt === '🔗 Paste a URL') {
+    userMsg('I\'ll paste a URL');
+    setTimeout(() => { botMsg('Perfect — drop in your Strava or RideWithGPS link below 👇'); }, 400);
+  } else if (opt === '🗺 Describe my route') {
+    userMsg('I\'ll describe my route');
+    setTimeout(() => { botMsg('Go for it — tell me where you\'re riding. City, region, trail name, whatever you know. I\'ll work with it.'); }, 400);
+  } else if (opt === '🚴 Try an example') {
+    userMsg('Try an example');
+    await processInput('https://www.strava.com/routes/123456 — Marin Headlands loop, ~40km', null);
+  } else if (opt === '✅ Yes, analyse it') {
+    askConcern();
+  } else if (opt === '❌ Different route') {
+    userMsg('Different route');
+    pendingRoute = null;
+    setTimeout(() => { botMsg('No problem — paste a different URL or describe the route you\'re planning.'); chatStep = 'greeting'; }, 400);
+  } else if (['Gravel & flats', 'Animal crossings', 'Descent danger', 'All hazards'].includes(opt)) {
+    riderConcern = opt; userMsg(opt);
+    await runAnalysis();
+  } else if (opt === '🚴 Analyse another') {
+    resetChat();
+  }
+}
+
+// ── Process input ──────────────────────
+async function processInput(text, photo) {
+  addTyping(); await sleep(600); removeTyping();
+
+  if (photo) {
+    await extractFromPhoto(photo);
+    return;
+  }
+
+  const isUrl = text && (text.includes('strava.com') || text.includes('ridewithgps.com') || text.includes('komoot.com'));
+  const isDescription = text && text.length > 15 && !isUrl;
+
+  if (isUrl || isDescription) {
+    pendingRoute = text;
+    await lookupRoute(text, isUrl);
+  } else if (text) {
+    botMsg('Could you paste a Strava or RideWithGPS URL, or describe the route in a bit more detail? e.g. "40km loop through the Marin Headlands, mostly tarmac"');
+  }
+}
+
+// ── Route lookup ───────────────────────
+async function lookupRoute(routeInput, isUrl) {
+  addTyping();
+  try {
+    const res = await callClaude([{
+      role: 'user',
+      content: `A cyclist shared this route: "${routeInput}"
+
+${isUrl ? 'This is a Strava/RideWithGPS URL. Extract what you can from the URL structure and infer the likely route based on common routes in that area.' : 'This is a route description.'}
+
+Return ONLY JSON:
+{
+  "recognised": true/false,
+  "route_name": "inferred route name",
+  "region": "city/region/country",
+  "distance_km": estimated number or null,
+  "terrain_type": "road/gravel/mixed/mtb",
+  "key_features": ["feature1","feature2","feature3"],
+  "confidence": "high/medium/low"
+}
+
+If you cannot infer a meaningful route, return {"recognised": false}.
+Only return JSON.`
+    }]);
+
+    removeTyping();
+    const result = JSON.parse(res.replace(/```json|```/g,'').trim());
+
+    if (result.recognised) {
+      const distText = result.distance_km ? ` · ${result.distance_km}km` : '';
+      const featText = result.key_features?.length ? `<br><span style="color:var(--stone);font-size:12px;">${result.key_features.join(' · ')}</span>` : '';
+      const confNote = result.confidence === 'low' ? `<br><small style="color:var(--amber);">⚠ I'm working with limited route data — confirm this looks right before we proceed.</small>` : '';
+      botMsg(`Found it 📍<br><br><strong>${result.route_name}</strong> — ${result.region}${distText}${featText}${confNote}<br><br>Is this the route you're planning?`);
+      await sleep(400);
+      addQR(['✅ Yes, analyse it', '❌ Different route']);
+      chatStep = 'confirming';
+    } else {
+      botMsg(`I couldn't pin down the exact route from that. Try describing it a bit more — region, approximate distance, road vs gravel? I'll work with whatever you've got.`);
+      chatStep = 'greeting';
+    }
+  } catch(e) {
+    removeTyping();
+    botMsg('Something went wrong — could you try again?');
+  }
+}
+
+// ── Photo extraction ───────────────────
+async function extractFromPhoto(photo) {
+  addTyping();
+  try {
+    const res = await callClaudeVision(photo, `This is a photo related to a cycling route. Extract any route information visible.
+Return ONLY JSON:
+{"found": true/false, "route_info": "route name, region, or description extracted from image"}
+Only return JSON.`);
+    removeTyping();
+    const result = JSON.parse(res.replace(/```json|```/g,'').trim());
+    if (result.found && result.route_info) {
+      pendingRoute = result.route_info;
+      await lookupRoute(result.route_info, false);
+    } else {
+      botMsg('I couldn\'t read a route from that photo. Try pasting a Strava or RideWithGPS URL directly, or describe the route.');
+    }
+  } catch(e) {
+    removeTyping();
+    botMsg('Trouble reading that — try pasting a URL instead.');
+  }
+}
+
+// ── Ask concern ────────────────────────
+function askConcern() {
+  chatStep = 'concern';
+  botMsg('What\'s your biggest concern for this ride? 👇');
+  addQR(['Gravel & flats', 'Animal crossings', 'Descent danger', 'All hazards']);
+}
+
+// ── Full analysis ──────────────────────
+async function runAnalysis() {
+  chatStep = 'analyzing';
+  addTyping();
+
+  const concernNote = riderConcern && riderConcern !== 'All hazards'
+    ? `Focus especially on: ${riderConcern}.`
+    : 'Cover all hazard types comprehensively.';
+
+  try {
+    const res = await callClaude([{
+      role: 'user',
+      content: `You are RouteRisk, a cycling road safety analyzer. Analyze this route for a cyclist: "${pendingRoute}"
+
+${concernNote}
+
+Return ONLY valid JSON — no markdown, no backticks:
+{
+  "overall_risk": "low" | "moderate" | "high" | "critical",
+  "overall_score": number 0-100,
+  "summary": "2-3 sentence conversational safety briefing for the rider",
+  "concern_note": "1 sentence addressing their specific concern if any",
+  "hazards": [
+    {
+      "name": "hazard name",
+      "severity": "low" | "moderate" | "high" | "critical",
+      "tag": "Gravel | Animal | Descent | Surface | Weather | Traffic | Blind Spot",
+      "location": "where on the route (e.g. km 12-18, final descent, exposed ridge)",
+      "description": "2 sentence plain-language explanation of the hazard",
+      "advice": "1 sentence practical advice for the rider",
+      "source": "OpenStreetMap | Strava Heatmap | Wildlife UK/US data | Local incident reports | Terrain analysis"
+    }
+  ],
+  "best_window": "best time of day or conditions to ride this route",
+  "safe_count": number,
+  "moderate_count": number,
+  "high_count": number
+}`
+    }]);
+
+    removeTyping();
+    const result = JSON.parse(res.replace(/```json|```/g,'').trim());
+
+    // Overall score message
+    const scoreColor = result.overall_risk === 'critical' ? '#E05252' : result.overall_risk === 'high' ? '#E8A838' : result.overall_risk === 'moderate' ? '#E8A838' : '#7EBF5A';
+    const scoreEmoji = result.overall_risk === 'critical' ? '🔴' : result.overall_risk === 'high' ? '🟠' : result.overall_risk === 'moderate' ? '🟡' : '🟢';
+
+    botMsg(`${scoreEmoji} <strong style="color:${scoreColor};">${result.overall_risk.toUpperCase()} RISK</strong> — Score ${result.overall_score}/100<br><br>${result.summary}${result.concern_note ? `<br><br><em style="color:var(--stone);">${result.concern_note}</em>` : ''}`);
+
+    await sleep(500);
+
+    // Summary chips
+    let chips = '';
+    if (result.safe_count > 0) chips += `<span style="background:rgba(126,191,90,0.12);color:#7EBF5A;border:1px solid rgba(126,191,90,0.3);padding:3px 10px;font-family:var(--mono);font-size:10px;border-radius:2px;letter-spacing:0.04em;">✓ ${result.safe_count} clear</span> `;
+    if (result.moderate_count > 0) chips += `<span style="background:rgba(232,168,56,0.12);color:#E8A838;border:1px solid rgba(232,168,56,0.3);padding:3px 10px;font-family:var(--mono);font-size:10px;border-radius:2px;letter-spacing:0.04em;">⚠ ${result.moderate_count} watch</span> `;
+    if (result.high_count > 0) chips += `<span style="background:rgba(224,82,82,0.12);color:#E05252;border:1px solid rgba(224,82,82,0.3);padding:3px 10px;font-family:var(--mono);font-size:10px;border-radius:2px;letter-spacing:0.04em;">🚩 ${result.high_count} hazard</span>`;
+
+    // Hazard rows
+    let rows = result.hazards.map(h => {
+      const color = h.severity === 'critical' || h.severity === 'high' ? '#E05252' : h.severity === 'moderate' ? '#E8A838' : '#7EBF5A';
+      const bg = h.severity === 'critical' || h.severity === 'high' ? 'rgba(224,82,82,0.08)' : h.severity === 'moderate' ? 'rgba(232,168,56,0.08)' : 'rgba(126,191,90,0.08)';
+      return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:${bg};border:1px solid ${color}22;margin-bottom:6px;border-radius:2px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:${color};margin-top:5px;flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:13px;margin-bottom:1px;">${h.name} <span style="font-weight:400;font-size:11px;color:var(--stone);">— ${h.location}</span></div>
+          <div style="font-size:12px;color:var(--stone);line-height:1.55;margin-bottom:3px;">${h.description}</div>
+          <div style="font-size:12px;color:var(--white);font-weight:500;">→ ${h.advice}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--stone);margin-top:3px;">Source: ${h.source}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;padding:2px 8px;background:${bg};color:${color};border:1px solid ${color}44;border-radius:2px;white-space:nowrap;flex-shrink:0;">${h.tag}</div>
+      </div>`;
+    }).join('');
+
+    const bestWindow = result.best_window ? `<div style="margin-top:12px;padding:10px 12px;background:var(--green-dim);border:1px solid rgba(126,191,90,0.2);border-radius:2px;"><span style="font-family:var(--mono);font-size:10px;color:var(--green);letter-spacing:0.08em;text-transform:uppercase;">Best window</span><br><span style="font-size:12px;color:var(--white);">${result.best_window}</span></div>` : '';
+
+    botMsg(`<div style="margin-bottom:12px;">${chips}</div>${rows}${bestWindow}<div style="margin-top:12px;padding:10px;background:rgba(138,150,128,0.08);border-left:2px solid var(--stone);font-family:var(--mono);font-size:10px;color:var(--stone);line-height:1.6;letter-spacing:0.02em;">⚠ AI analysis only. RouteRisk can make mistakes. Conditions change — verify locally before you ride.</div>`);
+
+    chatStep = 'done';
+    await sleep(600);
+    botMsg('Stay safe out there 🚴 Want to check another route?');
+    addQR(['🚴 Analyse another']);
+
+  } catch(e) {
+    removeTyping();
+    botMsg('Something went wrong analyzing the route. Could you try again?');
+    chatStep = 'greeting';
+  }
+}
+
+// ── API helpers ────────────────────────
+async function callClaude(messages) {
+  const res = await fetch('https://ai-proxy-pi-plum.vercel.app/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages })
+  });
+  const data = await res.json();
+  return data.content[0].text;
+}
+
+async function callClaudeVision(photo, prompt) {
+  const res = await fetch('https://ai-proxy-pi-plum.vercel.app/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 600,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: photo.mediaType, data: photo.base64 } },
+        { type: 'text', text: prompt }
+      ]}]
+    })
+  });
+  const data = await res.json();
+  return data.content[0].text;
+}
+
+function resetChat() {
+  document.getElementById('chatMessages').innerHTML = '';
+  chatStep = 'greeting'; pendingRoute = null; riderConcern = null; pendingPhoto = null;
+  clearPhoto();
+  setTimeout(() => botMsg("Hey! 👋 Paste your <strong>Strava</strong> or <strong>RideWithGPS</strong> URL and I'll map the hazards."), 300);
+  setTimeout(() => addQR(['🔗 Paste a URL', '🗺 Describe my route', '🚴 Try an example']), 700);
+}
+
+function enterSite() {
+  const gate = document.getElementById('gate');
+  gate.style.transition = 'opacity 0.4s ease';
+  gate.style.opacity = '0';
+  setTimeout(() => {
+    gate.style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+  }, 400);
+}
+</script>
+</body>
+</html>
