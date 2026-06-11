@@ -51,7 +51,8 @@ body::before {
   position: fixed; inset: 0; z-index: 999;
   background: rgba(12,15,10,0.88);
   backdrop-filter: blur(16px);
-  display: flex; align-items: center; justify-content: center;
+  display: none;
+  align-items: center; justify-content: center;
   padding: 24px;
 }
 .gate-box {
@@ -558,7 +559,7 @@ function extractStravaId(url) {
 window.addEventListener('load', () => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('strava_token')) {
-    // Returning from Strava OAuth — skip gate, go straight to chat
+    // Returning from Strava — skip gate entirely
     stravaToken = params.get('strava_token');
     stravaName = params.get('strava_name') || 'Rider';
     window.history.replaceState({}, '', window.location.pathname);
@@ -569,9 +570,11 @@ window.addEventListener('load', () => {
     setTimeout(() => addQR(['🔗 Paste Strava URL', '🗺 Describe my route']), 900);
   } else if (params.get('strava_error')) {
     window.history.replaceState({}, '', window.location.pathname);
-    // Gate already visible, show error note
+    document.getElementById('gate').style.display = 'flex';
+  } else {
+    // No token — show gate normally
+    document.getElementById('gate').style.display = 'flex';
   }
-  // else: gate is shown by default
 });
 
 // ── UI helpers ─────────────────────────
