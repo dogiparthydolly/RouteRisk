@@ -761,10 +761,25 @@ async function processInput(text, photo) {
 async function resolveAndFetchStrava(url) {
   addTyping();
   try {
+    // If it's a short link, try to resolve it via a no-cors fetch to follow redirects
+    let resolvedUrl = url;
+    if (url.includes('strava.app.link')) {
+      try {
+        // Use proxy to resolve the short link
+        const resolveRes = await fetch(`${PROXY}/api/resolve-strava`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, access_token: stravaToken, resolve_only: true })
+        });
+        const resolveData = await resolveRes.json();
+        if (resolveData.resolved_url) resolvedUrl = resolveData.resolved_url;
+      } catch(e) {}
+    }
+
     const res = await fetch(`${PROXY}/api/resolve-strava`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, access_token: stravaToken })
+      body: JSON.stringify({ url: resolvedUrl, access_token: stravaToken })
     });
     const data = await res.json();
     removeTyping();
