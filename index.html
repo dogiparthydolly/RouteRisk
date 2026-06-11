@@ -420,9 +420,19 @@ footer span { color: var(--green); }
       <div class="chat-avatar">🚴</div>
       <div>
         <div class="chat-name">RouteRisk</div>
-        <div class="chat-status">● ready</div>
+        <div class="chat-status" id="chatStatus">● ready</div>
       </div>
-      <button class="chat-reset" onclick="resetChat()">New route</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <div id="stravaConnectBtn" onclick="connectStrava()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#FC4C02;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:white;letter-spacing:0.06em;text-transform:uppercase;border-radius:2px;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+          Connect Strava
+        </div>
+        <div id="stravaConnectedBadge" style="display:none;align-items:center;gap:6px;padding:6px 12px;background:rgba(252,76,2,0.15);border:1px solid rgba(252,76,2,0.3);font-family:var(--mono);font-size:10px;color:#FC4C02;letter-spacing:0.06em;text-transform:uppercase;border-radius:2px;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="#FC4C02"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+          <span id="stravaAthleName">Connected</span>
+        </div>
+        <button class="chat-reset" onclick="resetChat()">New route</button>
+      </div>
     </div>
 
     <div id="chatMessages"></div>
@@ -494,8 +504,54 @@ footer span { color: var(--green); }
 </div><!-- /mainContent -->
 
 <script>
-// ── State ──────────────────────────────
-let chatStep = 'greeting';
+// ── Strava OAuth ───────────────────────
+const STRAVA_CLIENT_ID = '257353';
+const STRAVA_REDIRECT = 'https://ai-proxy-pi-plum.vercel.app/api/strava-callback';
+const PROXY = 'https://ai-proxy-pi-plum.vercel.app';
+
+let stravaToken = null;
+let stravaName = null;
+
+// Check if returning from Strava OAuth
+window.addEventListener('load', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('strava_token')) {
+    stravaToken = params.get('strava_token');
+    stravaName = params.get('strava_name') || 'Rider';
+    showStravaConnected();
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  if (params.get('strava_error')) {
+    console.warn('Strava error:', params.get('strava_error'));
+  }
+});
+
+function connectStrava() {
+  const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=read,activity:read`;
+  window.location.href = authUrl;
+}
+
+function showStravaConnected() {
+  document.getElementById('stravaConnectBtn').style.display = 'none';
+  const badge = document.getElementById('stravaConnectedBadge');
+  badge.style.display = 'flex';
+  document.getElementById('stravaAthleName').textContent = stravaName;
+  document.getElementById('chatStatus').textContent = '● strava connected';
+  document.getElementById('chatStatus').style.color = '#FC4C02';
+}
+
+function extractStravaId(url) {
+  // Handle various Strava URL formats
+  const routeMatch = url.match(/strava\.com\/routes\/(\d+)/);
+  const activityMatch = url.match(/strava\.com\/activities\/(\d+)/);
+  const shortLink = url.includes('strava.app.link') || url.includes('strava.com/') ;
+  return { 
+    route_id: routeMatch?.[1] || null, 
+    activity_id: activityMatch?.[1] || null,
+    is_strava: url.includes('strava.com') || url.includes('strava.app.link')
+  };
+}
 let pendingPhoto = null;
 let pendingRoute = null;
 let rideType = null;
@@ -503,7 +559,7 @@ let riderConcern = null;
 
 // ── Boot ───────────────────────────────
 window.addEventListener('load', () => {
-  setTimeout(() => botMsg("Hey! 👋 Paste your <strong>Strava</strong> or <strong>RideWithGPS</strong> URL and I'll map the hazards on your route — gravel, animals, descents, road surface, all of it."), 400);
+  setTimeout(() => botMsg("Hey! 👋 Connect your <strong>Strava</strong> account above to pull real route data — or paste a RideWithGPS URL, or just describe where you're riding. I'll map the hazards."), 400);
   setTimeout(() => addQR(['🔗 Paste a URL', '🗺 Describe my route', '🚴 Try an example']), 900);
 });
 
@@ -627,19 +683,65 @@ async function handleQR(opt) {
 async function processInput(text, photo) {
   addTyping(); await sleep(600); removeTyping();
 
-  if (photo) {
-    await extractFromPhoto(photo);
-    return;
-  }
+  if (photo) { await extractFromPhoto(photo); return; }
 
-  const isUrl = text && (text.includes('strava.com') || text.includes('ridewithgps.com') || text.includes('komoot.com'));
-  const isDescription = text && text.length > 15 && !isUrl;
+  const isStrava = text && (text.includes('strava.com') || text.includes('strava.app.link'));
+  const isRWGPS = text && text.includes('ridewithgps.com');
+  const isDescription = text && text.length > 15 && !isStrava && !isRWGPS;
 
-  if (isUrl || isDescription) {
+  if (isStrava) {
+    if (!stravaToken) {
+      // Not connected — prompt to connect
+      botMsg(`To pull your actual route data from Strava, tap <strong>Connect Strava</strong> above — it only takes a second. Or describe your route and I'll analyze it from that.`);
+      addQR(['🗺 Describe instead']);
+      return;
+    }
+    // Connected — fetch real route data
+    const { route_id, activity_id } = extractStravaId(text);
+    if (route_id || activity_id) {
+      await fetchStravaRoute(route_id, activity_id);
+    } else {
+      // Short link or unrecognised format — ask for full URL
+      botMsg(`That looks like a Strava share link — could you open it in Strava and copy the full URL from your browser? It should look like <span style="font-family:var(--mono);font-size:11px;">strava.com/activities/12345</span>`);
+    }
+  } else if (isRWGPS || isDescription) {
     pendingRoute = text;
-    await lookupRoute(text, isUrl);
+    await lookupRoute(text, !isDescription);
   } else if (text) {
-    botMsg('Could you paste a Strava or RideWithGPS URL, or describe the route in a bit more detail? e.g. "40km loop through the Marin Headlands, mostly tarmac"');
+    botMsg('Could you paste a Strava or RideWithGPS URL, or describe the route in a bit more detail?');
+  }
+}
+
+// ── Fetch real Strava route ────────────
+async function fetchStravaRoute(route_id, activity_id) {
+  addTyping();
+  try {
+    const res = await fetch(`${PROXY}/api/strava-route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: stravaToken, route_id, activity_id })
+    });
+    const data = await res.json();
+    removeTyping();
+
+    if (data.error) {
+      botMsg(`Couldn't fetch that route — it might be private. Try making it public in Strava, or describe the route instead.`);
+      return;
+    }
+
+    const distKm = data.distance_m ? (data.distance_m / 1000).toFixed(1) : null;
+    const elevM = data.elevation_gain_m ? Math.round(data.elevation_gain_m) : null;
+    const location = [data.city, data.state, data.country].filter(Boolean).join(', ');
+
+    pendingRoute = `${data.name}${location ? ` in ${location}` : ''}${distKm ? `, ${distKm}km` : ''}${elevM ? `, ${elevM}m elevation gain` : ''}${data.description ? `. ${data.description}` : ''}`;
+
+    botMsg(`Got it from Strava! 🎉<br><br><strong>${data.name}</strong>${location ? `<br><span style="color:var(--stone);font-size:12px;">📍 ${location}</span>` : ''}<br><span style="color:var(--stone);font-size:12px;">${[distKm ? `${distKm}km` : null, elevM ? `${elevM}m elevation` : null].filter(Boolean).join(' · ')}</span><br><br>Ready to analyze this ride?`);
+    await sleep(400);
+    addQR(['✅ Yes, analyse it', '❌ Different route']);
+    chatStep = 'confirming';
+  } catch(e) {
+    removeTyping();
+    botMsg('Something went wrong fetching from Strava — try again or describe the route.');
   }
 }
 
@@ -809,7 +911,7 @@ Return ONLY valid JSON — no markdown, no backticks:
 
 // ── API helpers ────────────────────────
 async function callClaude(messages) {
-  const res = await fetch('https://ai-proxy-pi-plum.vercel.app/api/chat', {
+  const res = await fetch(`${PROXY}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages })
@@ -819,7 +921,7 @@ async function callClaude(messages) {
 }
 
 async function callClaudeVision(photo, prompt) {
-  const res = await fetch('https://ai-proxy-pi-plum.vercel.app/api/chat', {
+  const res = await fetch(`${PROXY}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
