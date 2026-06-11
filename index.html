@@ -593,7 +593,7 @@ window.addEventListener('load', async () => {
         stravaName = data.athlete?.firstname || 'Rider';
         showStravaConnected();
         document.getElementById('chatMessages').innerHTML = '';
-        setTimeout(() => botMsg(`Connected! Welcome, <strong>${stravaName}!</strong> 🚴 Paste any Strava activity URL and I'll map the hazards.`), 300);
+        setTimeout(() => botMsg(`Connected! Welcome, <strong>${stravaName}!</strong> 🚴 Paste any Strava route link — short links work too — and I'll map the hazards.`), 300);
         setTimeout(() => addQR(['🔗 Paste Strava URL', '🗺 Describe my route']), 800);
       } else {
         document.getElementById('chatMessages').innerHTML = '';
@@ -741,52 +741,43 @@ async function processInput(text, photo) {
 
   if (isStrava) {
     if (stravaToken) {
-      const { route_id, activity_id } = extractStravaId(text);
-      if (route_id || activity_id) {
-        await fetchStravaWithToken(route_id, activity_id);
-      } else {
-        botMsg(`That's a short share link — open the activity in Strava, copy the full URL from your browser (like <span style="font-family:var(--mono);font-size:11px;">strava.com/activities/12345</span>) and paste it here.`);
-      }
+      await resolveAndFetchStrava(text);
     } else {
-      botMsg(`To pull real Strava data you need to connect your account. Go back and tap <strong>Connect with Strava</strong> — or describe the route and I'll work from that.`);
-      addQR(['🗺 Describe my route']);
+      botMsg(`To pull real Strava route data you need to connect your account first. Tap <strong>Connect with Strava</strong> above.`);
     }
   } else if (isRWGPS || isDescription) {
     pendingRoute = text;
     await lookupRoute(text, !isDescription);
   } else if (text) {
-    botMsg('Could you paste a Strava or RideWithGPS URL, or describe your route? e.g. "40km loop through Marin Headlands, mostly tarmac"');
+    botMsg('Paste a Strava route link — short links work too! Or describe your route and I\'ll analyze it.');
   }
 }
 
-// ── Fetch Strava route with OAuth token ──
-async function fetchStravaWithToken(route_id, activity_id) {
+// ── Resolve any Strava URL including short links ──
+async function resolveAndFetchStrava(url) {
   addTyping();
   try {
-    const res = await fetch(`${PROXY}/api/strava-route`, {
+    const res = await fetch(`${PROXY}/api/resolve-strava`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: stravaToken, route_id, activity_id })
+      body: JSON.stringify({ url, access_token: stravaToken })
     });
     const data = await res.json();
     removeTyping();
 
     if (data.error) {
       if (data.error.includes('private')) {
-        botMsg(`That activity is private on Strava. Make it public in your Strava settings, or describe the route instead.`);
+        botMsg(`That route is private on Strava. Make it public in your Strava settings and try again.`);
       } else {
         botMsg(`Couldn't fetch that route — ${data.error}. Try describing the route instead.`);
       }
       return;
     }
 
-    const distKm = data.distance_m ? (data.distance_m / 1000).toFixed(1) : null;
-    const elevM = data.elevation_gain_m ? Math.round(data.elevation_gain_m) : null;
     const location = [data.city, data.state, data.country].filter(Boolean).join(', ');
+    pendingRoute = `${data.name}${location ? ` in ${location}` : ''}${data.distance_km ? `, ${data.distance_km}km` : ''}${data.elevation_gain_m ? `, ${data.elevation_gain_m}m elevation gain` : ''}${data.description ? `. ${data.description}` : ''}. Sport: ${data.sport_type || 'cycling'}.`;
 
-    pendingRoute = `${data.name}${location ? ` in ${location}` : ''}${distKm ? `, ${distKm}km` : ''}${elevM ? `, ${elevM}m elevation gain` : ''}${data.description ? `. ${data.description}` : ''}. Sport: ${data.sport_type || 'cycling'}.`;
-
-    botMsg(`Got it from Strava! 🎉<br><br><strong>${data.name}</strong>${location ? `<br><span style="color:var(--stone);font-size:12px;">📍 ${location}</span>` : ''}<br><span style="color:var(--stone);font-size:12px;">${[distKm?`${distKm}km`:null, elevM?`${elevM}m elevation`:null].filter(Boolean).join(' · ')}</span><br><br>Ready to analyze?`);
+    botMsg(`Got it from Strava! 🎉<br><br><strong>${data.name}</strong>${location ? `<br><span style="color:var(--stone);font-size:12px;">📍 ${location}</span>` : ''}<br><span style="color:var(--stone);font-size:12px;">${[data.distance_km?`${data.distance_km}km`:null, data.elevation_gain_m?`${data.elevation_gain_m}m elevation`:null].filter(Boolean).join(' · ')}</span><br><br>Ready to analyze?`);
     await sleep(400);
     addQR(['✅ Yes, analyse it', '❌ Different route']);
     chatStep = 'confirming';
