@@ -735,19 +735,23 @@ async function processInput(text, photo) {
 
   if (photo) { await extractFromPhoto(photo); return; }
 
-  const isStrava = text && (text.includes('strava.com') || text.includes('strava.app.link'));
-  const isRWGPS = text && text.includes('ridewithgps.com');
-  const isDescription = text && text.length > 15 && !isStrava && !isRWGPS;
+  // Extract URL from text if mixed with other content
+  const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
+  const url = urlMatch ? urlMatch[1] : text;
+
+  const isStrava = url && (url.includes('strava.com') || url.includes('strava.app.link'));
+  const isRWGPS = url && url.includes('ridewithgps.com');
+  const isDescription = !isStrava && !isRWGPS && text.length > 15;
 
   if (isStrava) {
     if (stravaToken) {
-      await resolveAndFetchStrava(text);
+      await resolveAndFetchStrava(url);
     } else {
       botMsg(`To pull real Strava route data you need to connect your account first. Tap <strong>Connect with Strava</strong> above.`);
     }
   } else if (isRWGPS || isDescription) {
     pendingRoute = text;
-    await lookupRoute(text, !isDescription);
+    await lookupRoute(text, isRWGPS);
   } else if (text) {
     botMsg('Paste a Strava route link — short links work too! Or describe your route and I\'ll analyze it.');
   }
