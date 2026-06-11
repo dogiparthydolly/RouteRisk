@@ -760,26 +760,25 @@ async function processInput(text, photo) {
 // ── Resolve any Strava URL including short links ──
 async function resolveAndFetchStrava(url) {
   addTyping();
-  try {
-    // If it's a short link, try to resolve it via a no-cors fetch to follow redirects
-    let resolvedUrl = url;
-    if (url.includes('strava.app.link')) {
-      try {
-        // Use proxy to resolve the short link
-        const resolveRes = await fetch(`${PROXY}/api/resolve-strava`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, access_token: stravaToken, resolve_only: true })
-        });
-        const resolveData = await resolveRes.json();
-        if (resolveData.resolved_url) resolvedUrl = resolveData.resolved_url;
-      } catch(e) {}
-    }
+  
+  // strava.app.link uses Firebase Dynamic Links — can't be resolved server-side
+  // Ask user to get the full URL
+  if (url.includes('strava.app.link')) {
+    removeTyping();
+    botMsg(`That's a Strava share link — I need the full route URL to fetch the data. Here's how to get it:<br><br>
+      1. Open <strong>Strava app</strong> on your phone<br>
+      2. Find the route → tap <strong>Share</strong><br>
+      3. Tap <strong>Copy Link</strong> — or open in browser and copy the URL<br>
+      4. It should look like: <span style="font-family:var(--mono);font-size:11px;">strava.com/routes/12345678</span><br><br>
+      Paste that here and I'll analyze it! 🚴`);
+    return;
+  }
 
+  try {
     const res = await fetch(`${PROXY}/api/resolve-strava`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: resolvedUrl, access_token: stravaToken })
+      body: JSON.stringify({ url, access_token: stravaToken })
     });
     const data = await res.json();
     removeTyping();
