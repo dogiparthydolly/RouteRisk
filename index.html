@@ -376,19 +376,18 @@ footer span { color: var(--green); }
   <div class="gate-box">
     <div class="gate-logo">RouteRisk</div>
     <div class="gate-eyebrow">Road Safety Intelligence for Cyclists</div>
-    <div class="gate-title">Know what's ahead.</div>
+    <div class="gate-title">Before you roll out</div>
     <div class="gate-body">
-      RouteRisk pulls your Strava routes and maps the hazards — gravel sections, animal crossing zones, descent danger, and road surface risk. Connect Strava to get started.<br><br>
-      <span style="font-size:11px;color:var(--stone);">By connecting you confirm this is an <strong style="color:var(--white);">AI planning tool only</strong>, not a safety guarantee. The model can be wrong. Ride within your ability.</span>
+      RouteRisk uses AI to analyze cycling routes for road hazards, gravel sections, animal crossing zones, and terrain risk. It's a <strong>planning aid — not a guarantee of safety.</strong> Conditions change. The model can be wrong. Always ride within your ability and follow local road rules.
     </div>
-    <button class="gate-btn" onclick="connectStrava()" style="display:flex;align-items:center;justify-content:center;gap:10px;background:#FC4C02;margin-bottom:12px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
-      Connect with Strava
-    </button>
-    <button onclick="skipStrava()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);color:var(--stone);font-family:var(--mono);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.15s;" onmouseenter="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--stone)'">
-      Continue without Strava
-    </button>
-    <div class="gate-note" style="margin-top:14px;">RouteRisk only reads route data. We never post on your behalf.</div>
+    <div class="gate-check-row">
+      <input type="checkbox" id="gateCheck" onchange="document.getElementById('gateBtn').disabled = !this.checked">
+      <label class="gate-check-label" for="gateCheck">
+        I understand this is an <strong>AI-powered planning tool</strong>, not a substitute for real-world safety judgment. I will not rely solely on RouteRisk for decisions on the road.
+      </label>
+    </div>
+    <button class="gate-btn" id="gateBtn" disabled onclick="enterSite()">I agree — let's ride</button>
+    <div class="gate-note">No data stored. Route data is not shared.</div>
   </div>
 </div>
 
@@ -512,10 +511,6 @@ function connectStrava() {
   window.location.href = authUrl;
 }
 
-function skipStrava() {
-  enterSite();
-}
-
 function enterSite() {
   const gate = document.getElementById('gate');
   gate.style.transition = 'opacity 0.4s ease';
@@ -523,7 +518,27 @@ function enterSite() {
   setTimeout(() => {
     gate.style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
+    bootChat();
   }, 400);
+}
+
+function bootChat() {
+  setTimeout(() => {
+    botMsg("Hey! 👋 To pull your real route data, connect your Strava account below. It only takes a second.");
+    // Inject Connect Strava button as a chat message
+    setTimeout(() => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'padding-left:34px;';
+      wrap.innerHTML = `
+        <button onclick="connectStrava()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#FC4C02;border:none;cursor:pointer;font-family:var(--mono);font-size:11px;color:white;letter-spacing:0.06em;text-transform:uppercase;border-radius:2px;transition:opacity 0.15s;" onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+          Connect with Strava
+        </button>
+        <span style="display:block;margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--stone);letter-spacing:0.04em;">RouteRisk only reads route data. We never post on your behalf.</span>
+      `;
+      append(wrap);
+    }, 600);
+  }, 300);
 }
 
 function showStravaConnected() {
@@ -543,20 +558,20 @@ function extractStravaId(url) {
 window.addEventListener('load', () => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('strava_token')) {
+    // Returning from Strava OAuth — skip gate, go straight to chat
     stravaToken = params.get('strava_token');
     stravaName = params.get('strava_name') || 'Rider';
     window.history.replaceState({}, '', window.location.pathname);
-    // Skip gate, go straight in
     document.getElementById('gate').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
     showStravaConnected();
-    setTimeout(() => botMsg(`Welcome, <strong>${stravaName}!</strong> 🚴 Paste any Strava activity URL and I'll pull the route and map the hazards.`), 400);
+    setTimeout(() => botMsg(`Welcome, <strong>${stravaName}!</strong> 🚴 Strava is connected. Paste any activity URL and I'll pull the route and map the hazards.`), 400);
     setTimeout(() => addQR(['🔗 Paste Strava URL', '🗺 Describe my route']), 900);
   } else if (params.get('strava_error')) {
     window.history.replaceState({}, '', window.location.pathname);
-  } else {
-    // Normal boot — show gate
+    // Gate already visible, show error note
   }
+  // else: gate is shown by default
 });
 
 // ── UI helpers ─────────────────────────
