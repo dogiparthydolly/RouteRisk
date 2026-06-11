@@ -571,6 +571,10 @@ window.addEventListener('load', () => {
   } else if (params.get('strava_error')) {
     window.history.replaceState({}, '', window.location.pathname);
     document.getElementById('gate').style.display = 'flex';
+    // Show error detail for debugging
+    const detail = params.get('detail') || params.get('strava_error');
+    console.error('Strava error:', detail);
+    alert('Strava error: ' + detail); // temporary debug
   } else {
     // No token — show gate normally
     document.getElementById('gate').style.display = 'flex';
