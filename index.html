@@ -508,7 +508,10 @@ let rideType = null;
 let riderConcern = null;
 
 function connectStrava() {
-  const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=read,activity:read`;
+  // Use token response type — Strava sends token directly to redirect URI
+  // No server-side token exchange needed
+  const redirectUri = 'https://dogiparthydolly.github.io/RouteRisk/';
+  const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&approval_prompt=auto&scope=read,activity:read`;
   window.location.href = authUrl;
 }
 
@@ -556,10 +559,11 @@ function extractStravaId(url) {
 }
 
 // ── Boot ───────────────────────────────
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   const params = new URLSearchParams(window.location.search);
+
   if (params.get('strava_token')) {
-    // Returning from Strava — skip gate entirely
+    // Returning from Vercel callback with token
     stravaToken = params.get('strava_token');
     stravaName = params.get('strava_name') || 'Rider';
     window.history.replaceState({}, '', window.location.pathname);
@@ -568,15 +572,43 @@ window.addEventListener('load', () => {
     showStravaConnected();
     setTimeout(() => botMsg(`Welcome, <strong>${stravaName}!</strong> 🚴 Strava is connected. Paste any activity URL and I'll pull the route and map the hazards.`), 400);
     setTimeout(() => addQR(['🔗 Paste Strava URL', '🗺 Describe my route']), 900);
+
+  } else if (params.get('code')) {
+    // Strava sent code directly to GitHub Pages — exchange it via proxy
+    const code = params.get('code');
+    window.history.replaceState({}, '', window.location.pathname);
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    setTimeout(() => botMsg('Connecting to Strava... 🔄'), 300);
+
+    try {
+      const res = await fetch(`${PROXY}/api/exchange-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirect_uri: 'https://dogiparthydolly.github.io/RouteRisk/' })
+      });
+      const data = await res.json();
+      if (data.access_token) {
+        stravaToken = data.access_token;
+        stravaName = data.athlete?.firstname || 'Rider';
+        showStravaConnected();
+        document.getElementById('chatMessages').innerHTML = '';
+        setTimeout(() => botMsg(`Connected! Welcome, <strong>${stravaName}!</strong> 🚴 Paste any Strava activity URL and I'll map the hazards.`), 300);
+        setTimeout(() => addQR(['🔗 Paste Strava URL', '🗺 Describe my route']), 800);
+      } else {
+        document.getElementById('chatMessages').innerHTML = '';
+        setTimeout(() => bootChat(), 300);
+        setTimeout(() => botMsg(`⚠ Couldn't connect Strava: ${data.message || 'unknown error'}. Try again.`), 800);
+      }
+    } catch(e) {
+      document.getElementById('chatMessages').innerHTML = '';
+      setTimeout(() => bootChat(), 300);
+    }
+
   } else if (params.get('strava_error')) {
     window.history.replaceState({}, '', window.location.pathname);
     document.getElementById('gate').style.display = 'flex';
-    // Show error detail for debugging
-    const detail = params.get('detail') || params.get('strava_error');
-    console.error('Strava error:', detail);
-    alert('Strava error: ' + detail); // temporary debug
   } else {
-    // No token — show gate normally
     document.getElementById('gate').style.display = 'flex';
   }
 });
